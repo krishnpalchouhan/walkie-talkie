@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import io from 'socket.io-client';
+import io, { Socket } from 'socket.io-client';
+import {DefaultEventsMap} from "@socket.io/component-emitter";
 
 export default function Home() {
-  const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState<Socket<DefaultEventsMap, DefaultEventsMap> | null>(null);
   const [roomId, setRoomId] = useState('');
   const [isTalking, setIsTalking] = useState(false);
-  const audioContext = useRef(null);
-  const mediaRecorder = useRef(null);
+  const audioContext = useRef<AudioContext | null>(null);
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
 
   useEffect(() => {
     const initSocket = async () => {
@@ -29,7 +30,7 @@ export default function Home() {
 
   const startTalking = async () => {
     if (!audioContext.current) {
-      audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
+      audioContext.current = new (window.AudioContext || window.AudioContext)();
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
