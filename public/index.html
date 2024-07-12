@@ -4,17 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Walkie-Talkie</title>
+    <style>
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <h1>Walkie-Talkie</h1>
-    <button id="talk">Push to Talk</button>
+    <input type="text" id="channelInput" placeholder="Enter channel name">
+    <button id="joinButton">Join Channel</button>
+    <div id="talkControls" class="hidden">
+        <button id="startTalk">Start Talking</button>
+        <button id="stopTalk" class="hidden">Stop Talking</button>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const talkButton = document.getElementById('talk');
+        const channelInput = document.getElementById('channelInput');
+        const joinButton = document.getElementById('joinButton');
+        const talkControls = document.getElementById('talkControls');
+        const startTalkButton = document.getElementById('startTalk');
+        const stopTalkButton = document.getElementById('stopTalk');
         let mediaRecorder;
         let audioChunks = [];
+
+        joinButton.onclick = () => {
+            const channel = channelInput.value.trim();
+            if (channel) {
+                socket.emit('join', channel);
+                talkControls.classList.remove('hidden');
+                joinButton.disabled = true;
+                channelInput.disabled = true;
+            }
+        };
 
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
@@ -22,20 +46,25 @@
 
                 mediaRecorder.ondataavailable = (event) => {
                     audioChunks.push(event.data);
-                    if (mediaRecorder.state === "inactive") {
-                        let blob = new Blob(audioChunks, { type: 'audio/webm' });
-                        socket.emit('voice', blob);
-                        audioChunks = [];
-                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    socket.emit('voice', audioBlob);
+                    audioChunks = [];
                 };
             });
 
-        talkButton.onmousedown = () => {
+        startTalkButton.onclick = () => {
             mediaRecorder.start();
+            startTalkButton.classList.add('hidden');
+            stopTalkButton.classList.remove('hidden');
         };
 
-        talkButton.onmouseup = () => {
+        stopTalkButton.onclick = () => {
             mediaRecorder.stop();
+            stopTalkButton.classList.add('hidden');
+            startTalkButton.classList.remove('hidden');
         };
 
         socket.on('voice', (audioBlob) => {
