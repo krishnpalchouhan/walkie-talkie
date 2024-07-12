@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walkie-Talkie</title>
+</head>
+<body>
+    <h1>Walkie-Talkie</h1>
+    <button id="talk">Push to Talk</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const talkButton = document.getElementById('talk');
+        let mediaRecorder;
+        let audioChunks = [];
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                    if (mediaRecorder.state === "inactive") {
+                        let blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        socket.emit('voice', blob);
+                        audioChunks = [];
+                    }
+                };
+            });
+
+        talkButton.onmousedown = () => {
+            mediaRecorder.start();
+        };
+
+        talkButton.onmouseup = () => {
+            mediaRecorder.stop();
+        };
+
+        socket.on('voice', (audioBlob) => {
+            const audio = new Audio(URL.createObjectURL(audioBlob));
+            audio.play();
+        });
+    </script>
+</body>
+</html>
