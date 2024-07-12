@@ -1,42 +1,31 @@
-const { createServer } = require('http');
-const { parse } = require('url');
-const next = require('next');
 const express = require('express');
 const { Server } = require('socket.io');
+const http = require('http');
 
-const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev });
-const handle = app.getRequestHandler();
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 
-app.prepare().then(() => {
-    const server = express();
-    const httpServer = createServer(server);
-    const io = new Server(httpServer);
+io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
 
-    io.on('connection', (socket) => {
-        console.log(`New connection: ${socket.id}`);
-
-        socket.on('join-room', (roomId) => {
-            socket.join(roomId);
-            console.log(`${socket.id} joined room: ${roomId}`);
-        });
-
-        socket.on('send-audio', (audioChunk, roomId) => {
-            socket.to(roomId).emit('receive-audio', audioChunk);
-            console.log(`Audio chunk sent to room: ${roomId}`);
-        });
-
-        socket.on('disconnect', () => {
-            console.log(`Socket disconnected: ${socket.id}`);
-        });
+    socket.on('joinRoom', (roomId) => {
+        socket.join(roomId);
+        console.log(`User ${socket.id} joined room ${roomId}`);
     });
 
-    server.all('*', (req, res) => {
-        return handle(req, res, parse(req.url, true));
+    socket.on('audioMessage', (data) => {
+        socket.to(data.roomId).emit('audioMessage', data);
     });
 
-    httpServer.listen(3000, (err) => {
-        if (err) throw err;
-        console.log('> Ready on http://localhost:3000');
+    socket.on('chatMessage', (data) => {
+        socket.to(data.roomId).emit('chatMessage', data);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
     });
 });
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

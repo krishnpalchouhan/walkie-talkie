@@ -1,93 +1,64 @@
-import { useState, useEffect, useRef } from 'react';
-import io, { Socket } from 'socket.io-client';
-import {DefaultEventsMap} from "@socket.io/component-emitter";
+import { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
 
-export default function Home() {
-  const [socket, setSocket] = useState<Socket<DefaultEventsMap, DefaultEventsMap> | null>(null);
-  const [roomId, setRoomId] = useState('');
-  const [isTalking, setIsTalking] = useState(false);
-  const audioContext = useRef<AudioContext | null>(null);
-  const mediaRecorder = useRef<MediaRecorder | null>(null);
+const socket = io();
 
-  useEffect(() => {
-    const initSocket = async () => {
-      await fetch('/api/socket');
-      const newSocket = io();
-      setSocket(newSocket);
-    };
-    initSocket();
+const Home = () => {
+    const [roomId, setRoomId] = useState('');
+    const [messages, setMessages] = useState<string[]>([]);
+    const audioRef = useRef<MediaRecorder | null>(null);
 
-    return () => {
-      if (socket) socket.disconnect();
-    };
-  }, []);
+    useEffect(() => {
+        socket.on('chatMessage', (msg) => {
+            setMessages((prev) => [...prev, msg]);
+        });
 
-  const joinRoom = () => {
-    if (socket && roomId) {
-      socket.emit('join-room', roomId);
-    }
-  };
+        socket.on('audioMessage', (audioBlob) => {
+            const audio = new Audio(URL.createObjectURL(audioBlob));
+            audio.play();
+        });
+    }, []);
 
-  const startTalking = async () => {
-    if (!audioContext.current) {
-      audioContext.current = new (window.AudioContext || window.AudioContext)();
-    }
-
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder.current = new MediaRecorder(stream);
-
-    mediaRecorder.current.ondataavailable = (event) => {
-      if (event.data.size > 0 && socket) {
-        socket.emit('send-audio', event.data, roomId);
-      }
+    const joinRoom = () => {
+        socket.emit('joinRoom', roomId);
     };
 
-    mediaRecorder.current.start(100);
-    setIsTalking(true);
-  };
+    const sendChatMessage = (message: string) => {
+        socket.emit('chatMessage', { roomId, message });
+    };
 
-  const stopTalking = () => {
-    if (mediaRecorder.current) {
-      mediaRecorder.current.stop();
-      setIsTalking(false);
-    }
-  };
+    const startRecording = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioRef.current = new MediaRecorder(stream);
+        audioRef.current.ondataavailable = (event) => {
+            socket.emit('audioMessage', { roomId, audioBlob: event.data });
+        };
+        audioRef.current.start();
+    };
 
-  useEffect(() => {
-    if (socket) {
-      socket.on('receive-audio', (audioChunk) => {
-        const audio = new Audio(URL.createObjectURL(new Blob([audioChunk])));
-        audio.play();
-      });
-    }
-  }, [socket]);
+    const stopRecording = () => {
+        audioRef.current?.stop();
+    };
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-4xl font-bold mb-8">Walkie-Talkie</h1>
-      <div className="space-y-4">
-        <input
-          type="text"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-          placeholder="Enter Room ID"
-          className="px-4 py-2 border rounded"
-        />
-        <button
-          onClick={joinRoom}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Join Room
-        </button>
-        <button
-          onClick={isTalking ? stopTalking : startTalking}
-          className={`px-4 py-2 ${
-            isTalking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-          } text-white rounded`}
-        >
-          {isTalking ? 'Stop Talking' : 'Start Talking'}
-        </button>
-      </div>
-    </div>
-  );
-}
+    return (
+        <div className="flex flex-col items-center">
+            <input
+                type="text"
+                placeholder="Enter Room ID"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="border-2 p-2 m-2"
+            />
+            <button onClick={joinRoom} className="bg-blue-500 text-white p-2">Join Room</button>
+            <button onClick={startRecording} className="bg-green-500 text-white p-2">Start Recording</button>
+            <button onClick={stopRecording} className="bg-red-500 text-white p-2">Stop Recording</button>
+            <div className="chat-box">
+                {messages.map((msg, index) => (
+                    <div key={index}>{msg}</div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export default Home;
