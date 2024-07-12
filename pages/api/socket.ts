@@ -1,11 +1,22 @@
-import { Server } from 'socket.io';
+// pages/api/socket.ts
+import { Server as HttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import { NextApiRequest, NextApiResponse } from 'next';
+import { ServerResponse } from 'http';
 
-const SocketHandler = (req: any, res: any) => {
+const SocketHandler = (req: NextApiRequest, res: ServerResponse & { socket: any }) => {
+  if (!res.socket) {
+    res.statusCode = 500;
+    res.end('Socket is not available');
+    return;
+  }
+
   if (res.socket.server.io) {
     console.log('Socket is already running');
   } else {
     console.log('Socket is initializing');
-    const io = new Server(res.socket.server);
+    const httpServer: HttpServer = res.socket.server;
+    const io = new SocketIOServer(httpServer);
     res.socket.server.io = io;
 
     io.on('connection', (socket) => {
